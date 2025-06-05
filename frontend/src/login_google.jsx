@@ -1,22 +1,47 @@
 
 import { useState } from 'react';
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 
 function Login() {
-    const handleLoginSuccess = (credentialResponse) => {
-    if (credentialResponse.credential) {
+    const handleLoginSuccess = async (credentialResponse) => {
+      if (credentialResponse.credential) {
         const userData = jwtDecode(credentialResponse.credential);
         console.log("User data:", userData);
-        alert(`Welcome, ${userData.name}`);
+
+        try {
+          const response = await fetch('http://localhost:3000/api/auth/google', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: userData.email,
+              name: userData.name,
+              google_id: userData.sub, // sub = unique Google user ID
+            }),
+          });
+
+          const result = await response.json();
+          if (response.ok) {
+            alert(`Welcome, ${result.user.name || result.user.email}`);
+            localStorage.setItem('token', result.token);
+            navigate('/dasboard');
+          } else {
+            alert(`Login gagal: ${result.message}`);
+          }
+        } catch (err) {
+          console.error("Gagal login Google:", err);
+          alert("Terjadi kesalahan saat login via Google.");
+        }
       } else {
         console.error("Credential is missing in response:", credentialResponse);
         alert("Login gagal: credential tidak ditemukan.");
       }
     };
-
-
+    // Handle login error
     const handleLoginError = () => {
       console.log("Login failed");
       alert("Google login failed");
@@ -26,10 +51,32 @@ function Login() {
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
-    const handleSubmit = (e) => {
+    const navigate = useNavigate();
+    const handleSubmit = async (e) => {
       e.preventDefault();
       setIsLoading(true);
       // Simulate loading
+      try {
+        const response = await fetch('http://localhost:3000/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email, password }),
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+          localStorage.setItem('token', result.token);
+          navigate('/dasboard'); // ⬅️ redirect ke halaman dashboard
+        } else {
+          alert(`Login gagal: ${result.message}`);
+        }
+      } catch (error) {
+        console.error('Gagal login:', error);
+        alert('Terjadi kesalahan saat menghubungi server.');
+      }
       setTimeout(() => setIsLoading(false), 2000);
     };
   return (
